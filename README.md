@@ -130,3 +130,4 @@ src/seed.js         Dados de teste
 public/             Site (HTML, CSS e JavaScript)
 storage/            Fotos e PDFs da execução atual (criada ao iniciar)
 ```
+
