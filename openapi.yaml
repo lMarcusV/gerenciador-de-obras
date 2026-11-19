@@ -1,0 +1,721 @@
+openapi: 3.0.3
+info:
+  title: Gerenciador de Obras - API
+  version: 1.0.0
+  description: |
+    API REST para cadastro de obras, fotos de andamento e requisições de material com PDF.
+
+    **Como autenticar:** faça `POST /auth/login`, copie o `token` da resposta, clique em **Authorize**
+    e informe apenas o token. Todas as demais rotas exigem autenticação.
+servers:
+  - url: /api
+    description: Servidor local
+tags:
+  - name: Autenticação
+  - name: Obras
+  - name: Fotos
+  - name: Requisições de material
+
+paths:
+  /auth/cadastro:
+    post:
+      tags: [Autenticação]
+      summary: Cadastrar usuário
+      description: Cria uma conta e já devolve um token de acesso.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CadastroRequest'
+      responses:
+        '201':
+          description: Conta criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/Erro'
+        '409':
+          $ref: '#/components/responses/Erro'
+
+  /auth/login:
+    post:
+      tags: [Autenticação]
+      summary: Entrar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login realizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Erro'
+
+  /obras:
+    get:
+      tags: [Obras]
+      summary: Listar obras
+      description: Lista as obras de todos os usuários, da mais recente para a mais antiga.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filtra por status da obra.
+          schema:
+            $ref: '#/components/schemas/StatusObra'
+      responses:
+        '200':
+          description: Lista de obras
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Obra'
+        '401':
+          $ref: '#/components/responses/Erro'
+    post:
+      tags: [Obras]
+      summary: Cadastrar obra
+      description: A obra fica associada ao usuário autenticado.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObraRequest'
+      responses:
+        '201':
+          description: Obra cadastrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Obra'
+        '400':
+          $ref: '#/components/responses/Erro'
+        '401':
+          $ref: '#/components/responses/Erro'
+
+  /obras/{obraId}:
+    get:
+      tags: [Obras]
+      summary: Consultar obra
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObraId'
+      responses:
+        '200':
+          description: Dados da obra
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Obra'
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+    put:
+      tags: [Obras]
+      summary: Substituir os dados editáveis de uma obra
+      description: Exige título, descrição, endereço, data prevista e status. Os campos descrição e endereço podem ser enviados como strings vazias.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObraId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObraRequestPut'
+      responses:
+        '200':
+          description: Obra substituída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Obra'
+        '400':
+          $ref: '#/components/responses/Erro'
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+    patch:
+      tags: [Obras]
+      summary: Alterar parcialmente uma obra
+      description: Envie um ou mais campos editáveis. O status pode ser trocado entre Planejada, Em andamento, Concluída e Cancelada.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObraId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObraRequestPatch'
+      responses:
+        '200':
+          description: Obra atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Obra'
+        '400':
+          $ref: '#/components/responses/Erro'
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+  /obras/{obraId}/fotos:
+    get:
+      tags: [Fotos]
+      summary: Listar fotos da obra
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObraId'
+      responses:
+        '200':
+          description: Fotos da obra, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Foto'
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+    post:
+      tags: [Fotos]
+      summary: Inserir fotos na obra
+      description: |
+        Envia de 1 a 10 imagens (JPG, PNG, WEBP ou GIF, até 10 MB cada) no campo `fotos`.
+        Não é possível adicionar fotos a obras canceladas.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObraId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [fotos]
+              properties:
+                fotos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '201':
+          description: Fotos adicionadas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Foto'
+        '400':
+          $ref: '#/components/responses/Erro'
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+        '409':
+          $ref: '#/components/responses/Erro'
+  /obras/{obraId}/fotos/{fotoId}:
+    delete:
+      tags: [Fotos]
+      summary: Excluir foto da obra
+      description: Remove a foto e seu arquivo associado. Obras canceladas são somente para consulta.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObraId'
+        - name: fotoId
+          in: path
+          required: true
+          description: Identificador da foto
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Foto excluída
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+        '409':
+          $ref: '#/components/responses/Erro'
+
+  /obras/{obraId}/requisicoes:
+    get:
+      tags: [Requisições de material]
+      summary: Listar requisições da obra
+      description: Mostra quem fez cada requisição e quando ela foi criada.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObraId'
+      responses:
+        '200':
+          description: Requisições da obra, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Requisicao'
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+    post:
+      tags: [Requisições de material]
+      summary: Criar requisição de material
+      description: |
+        Registra a requisição (status inicial `Solicitada`) e gera o PDF vinculado.
+        Se o PDF não puder ser gerado ou armazenado, a requisição **não é registrada** e a API responde 500.
+        Não é possível criar requisições para obras canceladas.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObraId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequisicaoRequest'
+      responses:
+        '201':
+          description: Requisição registrada e PDF gerado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Requisicao'
+        '400':
+          $ref: '#/components/responses/Erro'
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+        '409':
+          $ref: '#/components/responses/Erro'
+        '500':
+          $ref: '#/components/responses/Erro'
+
+  /requisicoes/{requisicaoId}:
+    get:
+      tags: [Requisições de material]
+      summary: Verificar requisição de material
+      description: Retorna itens, status, solicitante, histórico e versões do PDF.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequisicaoId'
+      responses:
+        '200':
+          description: Dados da requisição
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Requisicao'
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+
+  /requisicoes/{requisicaoId}/pdf:
+    get:
+      tags: [Requisições de material]
+      summary: Baixar o PDF da requisição
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequisicaoId'
+        - name: versao
+          in: query
+          required: false
+          description: Versão do PDF. Sem este parâmetro, devolve a mais recente.
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Arquivo PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Erro'
+        '404':
+          $ref: '#/components/responses/Erro'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ObraId:
+      name: obraId
+      in: path
+      required: true
+      description: Identificador único da obra.
+      schema:
+        type: string
+        example: 66f1a2b3c4d5e6f708192a3b
+    RequisicaoId:
+      name: requisicaoId
+      in: path
+      required: true
+      description: Identificador único da requisição.
+      schema:
+        type: string
+        example: 66f1a2b3c4d5e6f708192a4c
+
+  responses:
+    Erro:
+      description: Erro (a mensagem explica o que aconteceu)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+
+  schemas:
+    Erro:
+      type: object
+      properties:
+        mensagem:
+          type: string
+          example: Obra não encontrada.
+
+    StatusObra:
+      type: string
+      enum: [Planejada, Em andamento, Concluída, Cancelada]
+
+    StatusRequisicao:
+      type: string
+      enum: [Rascunho, Solicitada, Aprovada, Rejeitada, Atendida]
+
+    UsuarioResumo:
+      type: object
+      properties:
+        id:
+          type: string
+        nome:
+          type: string
+          example: Carlos Mendes
+        email:
+          type: string
+          format: email
+          example: carlos@obras.com
+
+    Usuario:
+      allOf:
+        - $ref: '#/components/schemas/UsuarioResumo'
+        - type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    CadastroRequest:
+      type: object
+      required: [nome, email, senha]
+      properties:
+        nome:
+          type: string
+          example: Maria Oliveira
+        email:
+          type: string
+          format: email
+          example: maria@obras.com
+        senha:
+          type: string
+          format: password
+          minLength: 6
+          example: senha123
+
+    LoginRequest:
+      type: object
+      required: [email, senha]
+      properties:
+        email:
+          type: string
+          format: email
+          example: carlos@obras.com
+        senha:
+          type: string
+          format: password
+          example: senha123
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Token JWT (válido por 8 horas)
+        usuario:
+          $ref: '#/components/schemas/Usuario'
+
+    ObraRequest:
+      type: object
+      required: [titulo, dataInicioPrevista]
+      properties:
+        titulo:
+          type: string
+          maxLength: 150
+          example: Edifício Residencial Aurora
+        descricao:
+          type: string
+          example: Torre residencial de 12 pavimentos.
+        endereco:
+          type: string
+          example: Av. Djalma Batista, 1200 - Manaus, AM
+        dataInicioPrevista:
+          type: string
+          format: date
+          example: '2026-03-02'
+        status:
+          allOf:
+            - $ref: '#/components/schemas/StatusObra'
+          default: Planejada
+
+    ObraRequestPut:
+      type: object
+      required: [titulo, descricao, endereco, dataInicioPrevista, status]
+      properties:
+        titulo:
+          type: string
+          maxLength: 150
+        descricao:
+          type: string
+        endereco:
+          type: string
+        dataInicioPrevista:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/StatusObra'
+
+    ObraRequestPatch:
+      type: object
+      minProperties: 1
+      properties:
+        titulo:
+          type: string
+          maxLength: 150
+        descricao:
+          type: string
+        endereco:
+          type: string
+        dataInicioPrevista:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/StatusObra'
+
+    Obra:
+      type: object
+      properties:
+        id:
+          type: string
+        titulo:
+          type: string
+        descricao:
+          type: string
+        endereco:
+          type: string
+        dataInicioPrevista:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/StatusObra'
+        criadoPor:
+          $ref: '#/components/schemas/UsuarioResumo'
+        totalFotos:
+          type: integer
+        totalRequisicoes:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Foto:
+      type: object
+      properties:
+        id:
+          type: string
+        obra:
+          type: string
+          description: Identificador da obra a que a foto pertence
+        nomeOriginal:
+          type: string
+          example: fundacao.jpg
+        nomeArquivo:
+          type: string
+        url:
+          type: string
+          description: Caminho público da imagem
+          example: /storage/fotos/1760000000000-a1b2c3d4e5f6.jpg
+        mimetype:
+          type: string
+          example: image/jpeg
+        tamanho:
+          type: integer
+          description: Tamanho em bytes
+        enviadoPor:
+          $ref: '#/components/schemas/UsuarioResumo'
+        enviadoEm:
+          type: string
+          format: date-time
+
+    ItemMaterial:
+      type: object
+      required: [descricao, quantidade]
+      properties:
+        descricao:
+          type: string
+          example: Cimento CP II 50 kg
+        quantidade:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+          example: 200
+        unidade:
+          type: string
+          example: sc
+        observacao:
+          type: string
+          example: Entregar na portaria
+
+    RequisicaoRequest:
+      type: object
+      required: [itens]
+      properties:
+        data:
+          type: string
+          format: date
+          description: Data da solicitação. Se omitida, usa a data de hoje.
+          example: '2026-03-18'
+        observacoes:
+          type: string
+        itens:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ItemMaterial'
+
+    HistoricoRequisicao:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusRequisicao'
+        descricao:
+          type: string
+        usuario:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/UsuarioResumo'
+        data:
+          type: string
+          format: date-time
+
+    VersaoPdf:
+      type: object
+      properties:
+        versao:
+          type: integer
+          example: 1
+        arquivo:
+          type: string
+          example: req-0001-v1.pdf
+        geradoEm:
+          type: string
+          format: date-time
+
+    Requisicao:
+      type: object
+      properties:
+        id:
+          type: string
+        numero:
+          type: integer
+          example: 1
+        codigo:
+          type: string
+          example: REQ-0001
+        obra:
+          description: Identificador da obra (ou a obra resumida, ao consultar uma requisição)
+          oneOf:
+            - type: string
+            - type: object
+              properties:
+                id:
+                  type: string
+                titulo:
+                  type: string
+                status:
+                  $ref: '#/components/schemas/StatusObra'
+        solicitante:
+          $ref: '#/components/schemas/UsuarioResumo'
+        data:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/StatusRequisicao'
+        observacoes:
+          type: string
+        itens:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemMaterial'
+        historico:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoricoRequisicao'
+        pdfs:
+          type: array
+          items:
+            $ref: '#/components/schemas/VersaoPdf'
+        pdfUrl:
+          type: string
+          example: /api/requisicoes/66f1a2b3c4d5e6f708192a4c/pdf
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
